@@ -1,13 +1,13 @@
 /**
  * Block card testing before it hits Stripe.
  *
- *   npm install express stripe @sentinel/sdk
+ *   npm install express stripe @sentinelsup/sdk
  *
  *   SENTINEL_KEY=sk_live_xxx STRIPE_KEY=sk_live_xxx node examples/stripe-checkout.js
  */
 const express = require('express');
 const Stripe = require('stripe');
-const Sentinel = require('@sentinel/sdk');
+const Sentinel = require('@sentinelsup/sdk');
 
 const app = express();
 app.use(express.json());

@@ -1,14 +1,14 @@
-# @sentinel/sdk
+# @sentinelsup/sdk
 
 Official Node.js SDK for [Sentinel](https://sntlhq.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 40 ms.
 
-[![npm](https://img.shields.io/npm/v/@sentinel/sdk.svg)](https://www.npmjs.com/package/@sentinel/sdk)
-[![license](https://img.shields.io/npm/l/@sentinel/sdk.svg)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
+[![license](https://img.shields.io/npm/l/@sentinelsup/sdk.svg)](./LICENSE)
 
 ## Install
 
 ```bash
-npm install @sentinel/sdk
+npm install @sentinelsup/sdk
 ```
 
 Zero dependencies. Works on Node 14+, Bun, Deno, Cloudflare Workers, and Vercel Edge (wherever `fetch` exists).
@@ -16,7 +16,7 @@ Zero dependencies. Works on Node 14+, Bun, Deno, Cloudflare Workers, and Vercel 
 ## Quick start
 
 ```js
-const Sentinel = require('@sentinel/sdk');
+const Sentinel = require('@sentinelsup/sdk');
 
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
 
@@ -78,7 +78,7 @@ fetch('/checkout', { method: 'POST', body: JSON.stringify({ sentinelToken: token
 ### Stripe Checkout — block card testing
 
 ```js
-const Sentinel = require('@sentinel/sdk');
+const Sentinel = require('@sentinelsup/sdk');
 const stripe = require('stripe')(process.env.STRIPE_KEY);
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
 
@@ -142,7 +142,7 @@ Free tier: **1,000 requests/hour** per API key. No monthly cap, no credit card. 
 Full types ship with the package. Importing `Sentinel` gives you the class plus `EvaluateResult`, `DeviceIntel`, `EvaluateDetails`, and `SentinelError` types.
 
 ```ts
-import Sentinel, { EvaluateResult } from '@sentinel/sdk';
+import Sentinel, { EvaluateResult } from '@sentinelsup/sdk';
 ```
 
 ## License
