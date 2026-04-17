@@ -1,0 +1,42 @@
+{
+  "name": "@sentinel/sdk",
+  "version": "0.1.0",
+  "description": "Official Node.js SDK for Sentinel — real-time fraud detection, VPN/residential-proxy/antidetect-browser detection in under 40ms.",
+  "keywords": [
+    "fraud-detection",
+    "bot-detection",
+    "vpn-detection",
+    "proxy-detection",
+    "residential-proxy",
+    "antidetect-browser",
+    "stripe",
+    "shopify",
+    "chargeback",
+    "sentinel",
+    "sntlhq"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sentinelsup/sentinel-node.git"
+  },
+  "homepage": "https://sntlhq.com",
+  "bugs": {
+    "url": "https://github.com/sentinelsup/sentinel-node/issues"
+  },
+  "author": "Sentinel Edge Networks LTD <support@sntlhq.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  },
+  "scripts": {
+    "test": "node --test test.js"
+  }
+}
