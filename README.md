@@ -60,13 +60,18 @@ Get a free API key (no credit card) at [sntlhq.com/signup](https://sntlhq.com/si
 
 ## Frontend setup
 
-Add the client-side SDK to your frontend so Sentinel can collect the token:
+Add the Sentinel Edge SDK to your frontend so Sentinel can collect the token:
 
 ```html
-<script async src="https://fp.sntlhq.com/agent"></script>
+<script async src="https://sntlhq.com/assets/edge.js" id="_mcl"></script>
+
+<!-- Add class="monocle-enriched" to any form you want evaluated -->
+<form class="monocle-enriched" id="checkout-form">
+  <!-- The SDK injects: <input type="hidden" name="monocle" value="eyJ..."> -->
+</form>
 ```
 
-Read the token from the rendered form field and send it to your backend:
+Read the token from the injected form field and send it to your backend:
 
 ```js
 const token = document.querySelector('input[name="monocle"]').value;

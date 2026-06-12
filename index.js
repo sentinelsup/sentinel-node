@@ -3,7 +3,7 @@
  * Sentinel fraud detection API at https://sntlhq.com/v1/evaluate.
  *
  * Usage:
- *   const Sentinel = require('@sentinel/sdk');
+ *   const Sentinel = require('@sentinelsup/sdk');
  *   const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
  *   const result = await sentinel.evaluate({ token });
  *   if (result.isSuspicious) return res.status(403).end();
