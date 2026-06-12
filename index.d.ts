@@ -23,11 +23,52 @@ export interface DeviceIntel {
     tamperingScore?: number;
 }
 
+export interface NetworkSignals {
+    vpn: boolean;
+    proxy: boolean;
+    datacenter: boolean;
+    anonymous: boolean;
+    tor: boolean;
+    residential: boolean;
+    service: string | null;
+}
+
+export interface DeviceSignals {
+    antidetect: boolean;
+    automation: boolean;
+    emulator: boolean;
+    virtual_machine: boolean;
+    incognito: boolean;
+    privacy_mode: boolean;
+    ip_blocklisted: boolean;
+    visitor_id: string | null;
+    tampering_score: number;
+}
+
+export type ReasonCode =
+    | 'vpn_detected' | 'proxy_detected' | 'datacenter_asn' | 'tor_exit_node'
+    | 'anonymous_network' | 'antidetect_browser' | 'automation_detected'
+    | 'emulator_detected' | 'virtual_machine' | 'ip_blocklisted' | 'private_browsing';
+
 export interface EvaluateResult {
-    status: string;
+    /** "allow" | "review" | "block" — route on this */
+    decision: 'allow' | 'review' | 'block';
+    /** 0–100 weighted risk score */
+    risk_score: number;
+    /** Simple boolean verdict (network or device signals flagged) */
     isSuspicious: boolean;
+    ip: string | null;
+    country: string | null;
+    network: NetworkSignals;
+    /** Present only when fingerprintEventId was supplied */
+    device?: DeviceSignals;
+    /** Machine-readable reason codes for the verdict */
+    reasons: ReasonCode[];
+    evaluated_in_ms: number;
+    /** Legacy fields (kept for backwards compatibility) */
+    status: string;
     details: EvaluateDetails;
-    deviceIntel: DeviceIntel | null;
+    deviceIntel?: DeviceIntel | null;
 }
 
 export interface SentinelOptions {

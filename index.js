@@ -6,7 +6,7 @@
  *   const Sentinel = require('@sentinelsup/sdk');
  *   const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
  *   const result = await sentinel.evaluate({ token });
- *   if (result.isSuspicious) return res.status(403).end();
+ *   if (result.decision === 'block') return res.status(403).end();
  */
 
 const DEFAULT_ENDPOINT = 'https://sntlhq.com';
@@ -108,9 +108,17 @@ module.exports.SentinelError = SentinelError;
 
 /**
  * @typedef {object} EvaluateResult
+ * @property {'allow'|'review'|'block'} decision — route on this
+ * @property {number} risk_score — 0–100 weighted risk score
  * @property {boolean} isSuspicious — true if network or device signals flag the session
- * @property {EvaluateDetails} details — network / IP signals from Spur Monocle
- * @property {DeviceIntel|null} deviceIntel — device signals if fingerprintEventId was supplied
+ * @property {string|null} ip
+ * @property {string|null} country — 2-letter country code
+ * @property {object} network — { vpn, proxy, datacenter, anonymous, tor, residential, service }
+ * @property {object} [device] — { antidetect, automation, emulator, virtual_machine, incognito, visitor_id, tampering_score, ... } when fingerprintEventId was supplied
+ * @property {string[]} reasons — machine-readable reason codes (vpn_detected, proxy_detected, ...)
+ * @property {number} evaluated_in_ms
+ * @property {EvaluateDetails} details — legacy network signals (backwards compatibility)
+ * @property {DeviceIntel|null} [deviceIntel] — legacy device signals (backwards compatibility)
  */
 
 /**

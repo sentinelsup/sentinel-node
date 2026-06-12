@@ -5,6 +5,20 @@ Official Node.js SDK for [Sentinel](https://sntlhq.com) — real-time fraud dete
 [![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
 [![license](https://img.shields.io/npm/l/@sentinelsup/sdk.svg)](./LICENSE)
 
+## Set up with AI (fastest)
+
+Using Claude Code, Cursor, Copilot, or any AI coding assistant? Paste this
+one prompt and it wires the whole integration — frontend script, backend
+check, env var, and a test:
+
+> Fetch https://sntlhq.com/integrate.md and follow it to add Sentinel fraud
+> protection to this app — protect signup, login, and checkout. My API key
+> is sk_live_YOUR_KEY; put it in a SENTINEL_KEY env var, never in
+> client-side code. Then show me how to test it.
+
+[`integrate.md`](https://sntlhq.com/integrate.md) is the canonical
+machine-readable integration guide, kept in sync with the live API.
+
 ## Install
 
 ```bash
@@ -24,11 +38,10 @@ const result = await sentinel.evaluate({
   token: req.body.sentinelToken  // from the frontend SDK
 });
 
-if (result.isSuspicious) {
+if (result.decision === 'block') {
   return res.status(403).json({ error: 'blocked' });
 }
-
-// Safe — let the request through
+// 'review' → let through but flag; 'allow' → clean
 ```
 
 Get a free API key (no credit card) at [sntlhq.com/signup](https://sntlhq.com/signup).
@@ -37,26 +50,31 @@ Get a free API key (no credit card) at [sntlhq.com/signup](https://sntlhq.com/si
 
 ```ts
 {
-  isSuspicious: boolean,     // combined network + device verdict
-  details: {
-    ip: '45.33.32.156',
-    cc: 'US',
-    vpn: false,
-    proxied: true,          // residential proxy detected
-    dch: false,             // datacenter
-    anon: false,
-    service: 'BrightData'
+  decision: 'review',          // 'allow' | 'review' | 'block' — route on this
+  risk_score: 65,              // 0–100
+  isSuspicious: true,          // simple boolean verdict
+  ip: '198.51.100.18',
+  country: 'NL',
+  network: {
+    vpn: true, proxy: false, datacenter: true, anonymous: true,
+    tor: false, residential: false, service: 'PROTON_VPN'
   },
-  deviceIntel: {            // null unless you pass fingerprintEventId
-    visitorId: 'abc123...',
-    browserTampering: true, // antidetect browser detected
-    botDetected: false,
-    incognito: false,
-    virtualMachine: false,
-    emulator: false
-  }
+  device: {                    // present only when you pass fingerprintEventId
+    antidetect: false,         // antidetect browser detected
+    automation: false,         // bot / browser automation
+    emulator: false, virtual_machine: false, incognito: false,
+    ip_blocklisted: false, visitor_id: 'abc123', tampering_score: 0
+  },
+  reasons: ['vpn_detected', 'datacenter_asn'],  // machine-readable codes
+  evaluated_in_ms: 28
 }
 ```
+
+Try the live sample (same shape, no key needed):
+`curl "https://sntlhq.com/v1/evaluate/sample?scenario=vpn"`
+
+Legacy `details` / `deviceIntel` fields are still returned for backwards
+compatibility with 0.1.0 integrations.
 
 ## Frontend setup
 
@@ -113,10 +131,10 @@ app.post('/auth/google', async (req, res) => {
 ### Custom policy with `shouldBlock`
 
 ```js
-// Only block when we see both residential proxy AND browser tampering
+// Only block when we see both residential proxy AND an antidetect browser
 const blocked = await sentinel.shouldBlock(
   { token },
-  r => r.details.proxied && r.deviceIntel?.browserTampering
+  r => r.network.proxy && r.device?.antidetect
 );
 ```
 
