@@ -3,6 +3,8 @@
 Official Node.js SDK for [Sentinel](https://sntlhq.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 40 ms.
 
 [![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
+[![types](https://img.shields.io/npm/types/@sentinelsup/sdk.svg)](./index.d.ts)
 [![license](https://img.shields.io/npm/l/@sentinelsup/sdk.svg)](./LICENSE)
 
 ## Set up with AI (fastest)
@@ -167,6 +169,19 @@ Full types ship with the package. Importing `Sentinel` gives you the class plus 
 ```ts
 import Sentinel, { EvaluateResult } from '@sentinelsup/sdk';
 ```
+
+## What Sentinel detects
+
+VPNs (commercial + self-hosted) · residential proxies (Bright Data, IPRoyal,
+and similar networks) · datacenter IPs · Tor exit nodes · antidetect browsers
+(Kameleo, GoLogin, Multilogin, Dolphin{anty}, AdsPower) · headless browsers
+and automation (Puppeteer, Playwright, Selenium) · AI agents · emulators and
+virtual machines · browser tampering.
+
+## Related
+
+- **Python SDK** — [`sentinelsup`](https://github.com/sentinelsup/sentinel-python) on PyPI
+- **Free IP lookup tool** — [sntlhq.com/ip-lookup](https://sntlhq.com/ip-lookup)
 
 ## License
 
