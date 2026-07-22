@@ -27,7 +27,7 @@ machine-readable integration guide, kept in sync with the live API.
 npm install @sentinelsup/sdk
 ```
 
-Zero dependencies. Works on Node 14+, Bun, Deno, Cloudflare Workers, and Vercel Edge (wherever `fetch` exists).
+Zero dependencies. Works on Node 18+, Bun, Deno, Cloudflare Workers, and Vercel Edge (wherever `fetch` exists).
 
 ## Quick start
 
@@ -80,22 +80,25 @@ compatibility with 0.1.0 integrations.
 
 ## Frontend setup
 
-Add the Sentinel Edge SDK to your frontend so Sentinel can collect the token:
+Add the Sentinel SDK to your frontend. One script loads **both** layers —
+network (VPN/proxy/datacenter) and device (antidetect/bot/tampering):
 
 ```html
-<script async src="https://sntlhq.com/assets/edge.js" id="_mcl"></script>
+<script async src="https://sntlhq.com/assets/sentinel.js"></script>
 
 <!-- Add class="monocle-enriched" to any form you want evaluated -->
 <form class="monocle-enriched" id="checkout-form">
-  <!-- The SDK injects: <input type="hidden" name="monocle" value="eyJ..."> -->
+  <!-- The SDK injects both:
+       <input type="hidden" name="monocle"     value="eyJ...">  (network)
+       <input type="hidden" name="sentinel_fp" value="a1b2..."> (device) -->
 </form>
 ```
 
-Read the token from the injected form field and send it to your backend:
+Collect both and send them to your backend:
 
 ```js
-const token = document.querySelector('input[name="monocle"]').value;
-fetch('/checkout', { method: 'POST', body: JSON.stringify({ sentinelToken: token }) });
+const { token, fingerprintEventId } = await window.Sentinel.collect();
+fetch('/checkout', { method: 'POST', body: JSON.stringify({ token, fingerprintEventId }) });
 ```
 
 ## Examples
@@ -108,8 +111,8 @@ const stripe = require('stripe')(process.env.STRIPE_KEY);
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
 
 app.post('/checkout', async (req, res) => {
-  const { isSuspicious } = await sentinel.evaluate({ token: req.body.sentinelToken });
-  if (isSuspicious) return res.status(403).json({ error: 'declined' });
+  const { decision } = await sentinel.evaluate({ token: req.body.token, fingerprintEventId: req.body.fingerprintEventId });
+  if (decision === 'block') return res.status(403).json({ error: 'declined' });
 
   const intent = await stripe.paymentIntents.create({ /* ... */ });
   res.json({ clientSecret: intent.client_secret });
@@ -120,13 +123,13 @@ app.post('/checkout', async (req, res) => {
 
 ```js
 app.post('/auth/google', async (req, res) => {
-  const { credential, sentinelToken } = req.body;
+  const { credential, sentinelToken, fingerprintEventId } = req.body;
   const ticket = await googleClient.verifyIdToken({ idToken: credential });
 
-  const result = await sentinel.evaluate({ token: sentinelToken });
-  if (result.isSuspicious) return res.status(403).json({ error: 'signup_blocked' });
+  const result = await sentinel.evaluate({ token: sentinelToken, fingerprintEventId });
+  if (result.decision === 'block') return res.status(403).json({ error: 'signup_blocked' });
 
-  await createUser(ticket.getPayload().email, result.deviceIntel?.visitorId);
+  await createUser(ticket.getPayload().email, result.device?.visitor_id);
 });
 ```
 
@@ -140,6 +143,31 @@ const blocked = await sentinel.shouldBlock(
 );
 ```
 
+### Burner-email check at signup
+
+```js
+// Pass the signup email and Sentinel checks it against a continuously
+// refreshed disposable-domain feed. A hit adds the disposable_email
+// reason, raises risk_score, and escalates allow → review. The address
+// is checked transiently — never stored or logged.
+const result = await sentinel.evaluate({ token, email: req.body.email });
+if (result.email?.disposable) {
+  // e.g. require a real address before granting the trial
+}
+```
+
+### Look up an arbitrary IP — no browser token needed
+
+```js
+// Batch scoring, log enrichment, server-side screening. Same key,
+// same hourly quota as evaluate().
+const info = await sentinel.lookup('185.220.101.34');
+// info.verdict     → 'allow' | 'review' | 'block'
+// info.risk_score  → 0–100
+// info.signals     → { vpn, proxied, tor, dch, anon } (null when known:false)
+// info.network     → { asn, org, country, city }
+```
+
 ## API
 
 ### `new Sentinel({ apiKey, endpoint?, timeoutMs? })`
@@ -150,17 +178,42 @@ const blocked = await sentinel.shouldBlock(
 | `endpoint` | string | `https://sntlhq.com` | Override base URL |
 | `timeoutMs` | number | `5000` | Per-request timeout |
 
-### `sentinel.evaluate({ token, fingerprintEventId? })`
+### `sentinel.evaluate({ token, fingerprintEventId?, accountId?, email? })`
 
 Returns `EvaluateResult`. Throws `SentinelError` on network/API failure — the error carries `.status` and `.body`.
 
+- `fingerprintEventId` — adds the `device` signal block (antidetect, automation, emulator, …), including device history (`device.times_seen`, `device.first_seen` — ISO timestamp of the first sighting, `device.returning`).
+- `accountId` — your own user id for this session; enables multi-accounting detection (`device.linked_accounts` / `device.multi_account`).
+- `email` — adds `email.disposable` to the response; burner domains escalate `allow` to `review`.
+
+### `sentinel.lookup(ip)`
+
+Returns `LookupResponse` for any public IPv4/IPv6 address (wraps `GET /v1/lookup/{ip}`): allow/review/block verdict, 0–100 risk score, VPN/proxy/Tor/datacenter signals, and network attribution. Shares the per-key hourly quota with `evaluate()`. `known: false` means our feeds hold no data for the IP — it is **not** a clean guarantee.
+
 ### `sentinel.shouldBlock({ token, fingerprintEventId? }, predicate?)`
 
-Convenience: runs `evaluate()` and returns a boolean. Default predicate is `r => r.isSuspicious`. Pass your own to build custom policies.
+Convenience: runs `evaluate()` and returns a boolean. Default predicate is `r => r.decision === 'block'` (honors your dashboard rules and allow/block pins). Pass your own to build custom policies.
+
+> `accountId`, `email`, and `lookup()` require **v0.2.1 or later** (`npm install @sentinelsup/sdk@latest`) — the older 0.1.2 silently ignores `accountId`/`email`.
+
+## Testing
+
+Deterministic test tokens exercise every decision path from a terminal — authenticated and rate-limited like real calls, but never billed, stored, or webhooked (responses carry `"test": true`):
+
+```js
+await sentinel.evaluate({ token: 'test_vpn' });   // → decision: 'review'/'block' path
+await sentinel.evaluate({ token: 'test_clean' }); // → decision: 'allow' path
+// also: test_proxy, test_datacenter, test_tor
+```
+
+- **No account yet?** The public sandbox key `sk_test_sandbox` answers the same `test_*` tokens with the same shapes — no signup, nothing stored.
+- **CI / staging with real traffic:** every account also has a personal `sk_test_…` key (Settings → API Key) that runs the complete live pipeline — device intelligence, your rules and exception pins — but events are flagged as test, excluded from usage, and never fire webhooks. It is exempt from the account's IP allowlist.
 
 ## Rate limits
 
-Free tier: **1,000 requests/hour** per API key. No monthly cap, no credit card. Upgrade at [sntlhq.com](https://sntlhq.com) when you need more.
+Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card. Upgrade at [sntlhq.com](https://sntlhq.com) when you need more.
+
+On `429`, the thrown `SentinelError` has `.status === 429` — honor the `Retry-After` header and fail open (let the request through and log it) rather than blocking real users while you are throttled. Responses also carry `X-RateLimit-Limit` / `-Remaining` / `-Reset` for proactive backoff.
 
 ## TypeScript
 

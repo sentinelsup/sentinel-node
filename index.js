@@ -37,30 +37,21 @@ class Sentinel {
     }
 
     /**
-     * Evaluate a visitor session for fraud signals.
-     *
-     * @param {object} input
-     * @param {string} input.token — Sentinel client-side token from the frontend SDK
-     * @param {string} [input.fingerprintEventId] — optional Fingerprint event id for device signals
-     * @returns {Promise<EvaluateResult>}
+     * Shared transport: auth header, timeout, JSON parsing, error mapping.
+     * @private
      */
-    async evaluate({ token, fingerprintEventId } = {}) {
-        if (!token || typeof token !== 'string') {
-            throw new SentinelError('Sentinel.evaluate: token (client-side Sentinel token) is required');
-        }
-
+    async _request(path, init) {
         const controller = new AbortController();
         const abortTimer = setTimeout(() => controller.abort(), this.timeoutMs);
 
         let res;
         try {
-            res = await fetch(`${this.endpoint}/v1/evaluate`, {
-                method: 'POST',
+            res = await fetch(`${this.endpoint}${path}`, {
+                ...init,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+                    ...(init && init.headers)
                 },
-                body: JSON.stringify({ token, fingerprintEventId }),
                 signal: controller.signal
             });
         } catch (err) {
@@ -68,12 +59,20 @@ class Sentinel {
                 throw new SentinelError(`Sentinel: request timed out after ${this.timeoutMs}ms`);
             }
             throw new SentinelError(`Sentinel: network error — ${err.message}`);
+        }
+
+        // Body read stays under the abort timer too — otherwise a stalled
+        // response body hangs the call far past timeoutMs.
+        let json;
+        try { json = await res.json(); } catch (err) {
+            if (err && err.name === 'AbortError') {
+                clearTimeout(abortTimer);
+                throw new SentinelError(`Sentinel: request timed out after ${this.timeoutMs}ms`);
+            }
+            json = null;
         } finally {
             clearTimeout(abortTimer);
         }
-
-        let json;
-        try { json = await res.json(); } catch { json = null; }
 
         if (!res.ok) {
             throw new SentinelError(
@@ -86,8 +85,49 @@ class Sentinel {
     }
 
     /**
+     * Evaluate a visitor session for fraud signals.
+     *
+     * @param {object} input
+     * @param {string} input.token — Sentinel client-side token from the frontend SDK
+     * @param {string} [input.fingerprintEventId] — optional Fingerprint event id for device signals
+     * @param {string} [input.accountId] — optional account/user id for multi-accounting detection
+     * @param {string} [input.email] — optional signup email; adds `email.disposable` to the
+     *   response (burner domains escalate allow → review). Checked transiently, never stored.
+     * @returns {Promise<EvaluateResult>}
+     */
+    async evaluate({ token, fingerprintEventId, accountId, email } = {}) {
+        if (!token || typeof token !== 'string') {
+            throw new SentinelError('Sentinel.evaluate: token (client-side Sentinel token) is required');
+        }
+        return this._request('/v1/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, fingerprintEventId, accountId, email })
+        });
+    }
+
+    /**
+     * Look up an arbitrary public IP address — no browser token needed.
+     * Wraps GET /v1/lookup/{ip}: allow/review/block verdict, 0–100 risk
+     * score, VPN/proxy/Tor/datacenter signals, and network attribution.
+     * Shares the per-key hourly quota with evaluate().
+     *
+     * @param {string} ip — public IPv4 or IPv6 address, e.g. '185.220.101.34'
+     * @returns {Promise<LookupResponse>}
+     */
+    async lookup(ip) {
+        if (!ip || typeof ip !== 'string') {
+            throw new SentinelError('Sentinel.lookup: ip (public IPv4 or IPv6 address) is required');
+        }
+        return this._request(`/v1/lookup/${encodeURIComponent(ip.trim())}`, { method: 'GET' });
+    }
+
+    /**
      * Convenience helper: returns true if the session should be blocked.
-     * Defaults to blocking when the API's own isSuspicious flag is set.
+     * Defaults to the API's own decision === 'block' — this honors your
+     * dashboard rules and allow/block pins, and matches the documented
+     * routing contract. (Earlier versions gated on isSuspicious, which
+     * blocked 'review' traffic and ignored customer allow-pins.)
      * Pass a custom predicate to build your own policy.
      *
      * @param {object} input — same as evaluate()
@@ -96,7 +136,7 @@ class Sentinel {
      */
     async shouldBlock(input, predicate) {
         const result = await this.evaluate(input);
-        return predicate ? !!predicate(result) : !!result.isSuspicious;
+        return predicate ? !!predicate(result) : result.decision === 'block';
     }
 }
 
@@ -117,8 +157,29 @@ module.exports.SentinelError = SentinelError;
  * @property {object} [device] — { antidetect, automation, emulator, virtual_machine, incognito, visitor_id, tampering_score, ... } when fingerprintEventId was supplied
  * @property {string[]} reasons — machine-readable reason codes (vpn_detected, proxy_detected, ...)
  * @property {number} evaluated_in_ms
+ * @property {{disposable: boolean}} [email] — present when the optional email input was supplied
+ * @property {'allow'|'review'|'block'} [engine_decision] — present when your own rules/exceptions changed `decision`
+ * @property {'rules'|'exception'} [decision_source] — who authored the final decision when it was not the engine
+ * @property {string[]} [rule_matched] — signals that triggered a custom rule
+ * @property {string[]} [exception_matched] — matched per-IP/visitor pins
+ * @property {boolean} [test] — present on test-token / test-key responses (never billed)
  * @property {EvaluateDetails} details — legacy network signals (backwards compatibility)
  * @property {DeviceIntel|null} [deviceIntel] — legacy device signals (backwards compatibility)
+ */
+
+/**
+ * @typedef {object} LookupResponse
+ * @property {string} ip
+ * @property {boolean} known — whether our reputation feeds hold data for this IP (false ≠ clean)
+ * @property {'allow'|'review'|'block'} verdict
+ * @property {number} risk_score — 0–100
+ * @property {{vpn: boolean, proxied: boolean, tor: boolean, dch: boolean, anon: boolean}|null} signals — null when known is false
+ * @property {{asn: number|null, org: string|null, country: string|null, city: string|null, cloud?: string}|null} network
+ * @property {number} latency_ms
+ * @property {'allow'|'review'|'block'} [engine_verdict] — present when an exception pin changed `verdict`
+ * @property {'exception'} [verdict_source]
+ * @property {string[]} [exception_matched]
+ * @property {boolean} [test] — present when the call used the per-account sk_test_ key
  */
 
 /**

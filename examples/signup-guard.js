@@ -4,7 +4,7 @@
  *
  *   SENTINEL_KEY=sk_live_xxx node examples/signup-guard.js
  */
-const Sentinel = require('@sentinel/sdk');
+const Sentinel = require('@sentinelsup/sdk');
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
 
 // Replace with your real DB call.
@@ -21,7 +21,7 @@ async function handleSignup({ email, sentinelToken }) {
     if (prior >= 3) {
         throw new Error(`Signup blocked — device has already created ${prior} accounts`);
     }
-    if (result.isSuspicious) {
+    if (result.decision === 'block') {
         throw new Error('Signup blocked — high-risk session');
     }
 
