@@ -12,7 +12,7 @@ test('constructor throws without apiKey', () => {
 test('constructor accepts apiKey', () => {
     const s = new Sentinel({ apiKey: 'sk_live_abc' });
     assert.equal(s.apiKey, 'sk_live_abc');
-    assert.equal(s.endpoint, 'https://sntlhq.com');
+    assert.equal(s.endpoint, 'https://maskbreak.com');
 });
 
 test('constructor trims trailing slash from endpoint', () => {

@@ -141,9 +141,9 @@ export interface LookupResponse {
 }
 
 export interface SentinelOptions {
-    /** Your Sentinel API key (starts with sk_live_). Get one free at https://sntlhq.com/signup */
+    /** Your Sentinel API key (starts with sk_live_). Get one free at https://maskbreak.com/signup */
     apiKey: string;
-    /** Override the API base URL (default: https://sntlhq.com) */
+    /** Override the API base URL (default: https://maskbreak.com) */
     endpoint?: string;
     /** Per-request timeout in ms (default: 5000) */
     timeoutMs?: number;

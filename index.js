@@ -1,6 +1,6 @@
 /**
  * Sentinel Node.js SDK — thin, zero-dependency wrapper around the
- * Sentinel fraud detection API at https://sntlhq.com/v1/evaluate.
+ * Sentinel fraud detection API at https://maskbreak.com/v1/evaluate.
  *
  * Usage:
  *   const Sentinel = require('@sentinelsup/sdk');
@@ -9,7 +9,7 @@
  *   if (result.decision === 'block') return res.status(403).end();
  */
 
-const DEFAULT_ENDPOINT = 'https://sntlhq.com';
+const DEFAULT_ENDPOINT = 'https://maskbreak.com';
 
 class SentinelError extends Error {
     constructor(message, { status, body } = {}) {
@@ -29,7 +29,7 @@ class Sentinel {
      */
     constructor(opts) {
         if (!opts || typeof opts.apiKey !== 'string' || !opts.apiKey) {
-            throw new SentinelError('Sentinel: apiKey is required. Get one free at https://sntlhq.com/signup');
+            throw new SentinelError('Sentinel: apiKey is required. Get one free at https://maskbreak.com/signup');
         }
         this.apiKey = opts.apiKey;
         this.endpoint = (opts.endpoint || DEFAULT_ENDPOINT).replace(/\/$/, '');

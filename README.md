@@ -1,6 +1,6 @@
 # @sentinelsup/sdk
 
-Official Node.js SDK for [Sentinel](https://sntlhq.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 40 ms.
+Official Node.js SDK for [Maskbreak](https://maskbreak.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 40 ms.
 
 [![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
@@ -13,12 +13,12 @@ Using Claude Code, Cursor, Copilot, or any AI coding assistant? Paste this
 one prompt and it wires the whole integration — frontend script, backend
 check, env var, and a test:
 
-> Fetch https://sntlhq.com/integrate.md and follow it to add Sentinel fraud
+> Fetch https://maskbreak.com/integrate.md and follow it to add Maskbreak fraud
 > protection to this app — protect signup, login, and checkout. My API key
 > is sk_live_YOUR_KEY; put it in a SENTINEL_KEY env var, never in
 > client-side code. Then show me how to test it.
 
-[`integrate.md`](https://sntlhq.com/integrate.md) is the canonical
+[`integrate.md`](https://maskbreak.com/integrate.md) is the canonical
 machine-readable integration guide, kept in sync with the live API.
 
 ## Install
@@ -46,7 +46,7 @@ if (result.decision === 'block') {
 // 'review' → let through but flag; 'allow' → clean
 ```
 
-Get a free API key (no credit card) at [sntlhq.com/signup](https://sntlhq.com/signup).
+Get a free API key (no credit card) at [maskbreak.com/signup](https://maskbreak.com/signup).
 
 ## What you get back
 
@@ -73,18 +73,18 @@ Get a free API key (no credit card) at [sntlhq.com/signup](https://sntlhq.com/si
 ```
 
 Try the live sample (same shape, no key needed):
-`curl "https://sntlhq.com/v1/evaluate/sample?scenario=vpn"`
+`curl "https://maskbreak.com/v1/evaluate/sample?scenario=vpn"`
 
 Legacy `details` / `deviceIntel` fields are still returned for backwards
 compatibility with 0.1.0 integrations.
 
 ## Frontend setup
 
-Add the Sentinel SDK to your frontend. One script loads **both** layers —
+Add the Maskbreak SDK to your frontend. One script loads **both** layers —
 network (VPN/proxy/datacenter) and device (antidetect/bot/tampering):
 
 ```html
-<script async src="https://sntlhq.com/assets/sentinel.js"></script>
+<script async src="https://maskbreak.com/assets/sentinel.js"></script>
 
 <!-- Add class="monocle-enriched" to any form you want evaluated -->
 <form class="monocle-enriched" id="checkout-form">
@@ -175,7 +175,7 @@ const info = await sentinel.lookup('185.220.101.34');
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `apiKey` | string | required | Your key starting with `sk_live_` |
-| `endpoint` | string | `https://sntlhq.com` | Override base URL |
+| `endpoint` | string | `https://maskbreak.com` | Override base URL |
 | `timeoutMs` | number | `5000` | Per-request timeout |
 
 ### `sentinel.evaluate({ token, fingerprintEventId?, accountId?, email? })`
@@ -211,7 +211,7 @@ await sentinel.evaluate({ token: 'test_clean' }); // → decision: 'allow' path
 
 ## Rate limits
 
-Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card. Upgrade at [sntlhq.com](https://sntlhq.com) when you need more.
+Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card. Upgrade at [maskbreak.com](https://maskbreak.com) when you need more.
 
 On `429`, the thrown `SentinelError` has `.status === 429` — honor the `Retry-After` header and fail open (let the request through and log it) rather than blocking real users while you are throttled. Responses also carry `X-RateLimit-Limit` / `-Remaining` / `-Reset` for proactive backoff.
 
@@ -223,7 +223,7 @@ Full types ship with the package. Importing `Sentinel` gives you the class plus 
 import Sentinel, { EvaluateResult } from '@sentinelsup/sdk';
 ```
 
-## What Sentinel detects
+## What Maskbreak detects
 
 VPNs (commercial + self-hosted) · residential proxies (Bright Data, IPRoyal,
 and similar networks) · datacenter IPs · Tor exit nodes · antidetect browsers
@@ -233,8 +233,8 @@ virtual machines · browser tampering.
 
 ## Related
 
-- **Python SDK** — [`sentinelsup`](https://github.com/sentinelsup/sentinel-python) on PyPI
-- **Free IP lookup tool** — [sntlhq.com/ip-lookup](https://sntlhq.com/ip-lookup)
+- **Python SDK** — [`sentinelsup`](https://github.com/sentinelsup/maskbreak-python) on PyPI
+- **Free IP lookup tool** — [maskbreak.com/ip-lookup](https://maskbreak.com/ip-lookup)
 
 ## License
 
@@ -242,7 +242,7 @@ MIT © Sentinel Edge Networks LTD
 
 ## Links
 
-- Website — [sntlhq.com](https://sntlhq.com)
-- API docs — [sntlhq.com/api](https://sntlhq.com/api)
-- Blog — [sntlhq.com/blog](https://sntlhq.com/blog)
-- X / Twitter — [@SentinelSup](https://x.com/SentinelSup)
+- Website — [maskbreak.com](https://maskbreak.com)
+- API docs — [maskbreak.com/api](https://maskbreak.com/api)
+- Blog — [maskbreak.com/blog](https://maskbreak.com/blog)
+- X / Twitter — [@MaskbreakSup](https://x.com/MaskbreakSup)
