@@ -1,6 +1,6 @@
 # @sentinelsup/sdk
 
-Official Node.js SDK for [Maskbreak](https://maskbreak.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 40 ms.
+Official Node.js SDK for [Maskbreak](https://maskbreak.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 150 ms.
 
 [![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
@@ -68,7 +68,7 @@ Get a free API key (no credit card) at [maskbreak.com/signup](https://maskbreak.
     ip_blocklisted: false, visitor_id: 'abc123', tampering_score: 0
   },
   reasons: ['vpn_detected', 'datacenter_asn'],  // machine-readable codes
-  evaluated_in_ms: 28
+  evaluated_in_ms: 126
 }
 ```
 
@@ -211,7 +211,7 @@ await sentinel.evaluate({ token: 'test_clean' }); // → decision: 'allow' path
 
 ## Rate limits
 
-Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card. Upgrade at [maskbreak.com](https://maskbreak.com) when you need more.
+Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card.
 
 On `429`, the thrown `SentinelError` has `.status === 429` — honor the `Retry-After` header and fail open (let the request through and log it) rather than blocking real users while you are throttled. Responses also carry `X-RateLimit-Limit` / `-Remaining` / `-Reset` for proactive backoff.
 
@@ -245,4 +245,3 @@ MIT © Sentinel Edge Networks LTD
 - Website — [maskbreak.com](https://maskbreak.com)
 - API docs — [maskbreak.com/api](https://maskbreak.com/api)
 - Blog — [maskbreak.com/blog](https://maskbreak.com/blog)
-- X / Twitter — [@MaskbreakSup](https://x.com/MaskbreakSup)
