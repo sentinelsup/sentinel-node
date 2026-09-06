@@ -14,31 +14,34 @@ app.use(express.json());
 
 const stripe = Stripe(process.env.STRIPE_KEY);
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
+// Demo catalog: prices come from the server, never the request body.
+const catalog = new Map([['demo', { amount: 2000, currency: 'usd' }]]);
 
 app.post('/checkout', async (req, res) => {
-    const { amount, currency, sentinelToken } = req.body;
+    const { productId, sentinelToken, fingerprintEventId } = req.body;
+    const price = catalog.get(productId);
+    if (!price) return res.status(400).json({ error: 'Unknown product.' });
 
     // 1. Screen the session BEFORE creating a Stripe payment intent.
     try {
-        const result = await sentinel.evaluate({ token: sentinelToken });
+        const result = await sentinel.evaluate({ token: sentinelToken, fingerprintEventId });
 
-        // Block only when multiple high-risk signals line up — don't penalize
-        // real users who happen to use NordVPN.
-        const hardBlock = result.details.proxied
-            || (result.deviceIntel && result.deviceIntel.browserTampering)
-            || (result.deviceIntel && result.deviceIntel.botDetected);
-
-        if (hardBlock) {
-            console.warn('[sentinel] blocked session', result.details);
+        // Honor the final decision, including your configured rules and pins.
+        if (result.decision === 'block') {
             return res.status(403).json({ error: 'Payment declined.' });
         }
+        if (result.test || result.sandbox || result.sample || result.degraded || result.decision !== 'allow') {
+            return res.status(503).json({ error: 'Payment requires additional verification.' });
+        }
     } catch (err) {
-        // Don't fail closed on Sentinel outages — log and continue.
+        // This checkout example pauses on unavailable checks; choose and document
+        // your own retry/review policy instead of treating failures as approval.
         console.error('[sentinel] evaluate failed', err.message);
+        return res.status(503).json({ error: 'Payment verification unavailable. Try again.' });
     }
 
-    // 2. Safe — proceed to Stripe.
-    const intent = await stripe.paymentIntents.create({ amount, currency });
+    // 2. The configured policy allows this request; this is not proof of safety.
+    const intent = await stripe.paymentIntents.create(price);
     res.json({ clientSecret: intent.client_secret });
 });
 

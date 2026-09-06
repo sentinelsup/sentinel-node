@@ -30,6 +30,7 @@ export interface NetworkSignals {
     anonymous: boolean;
     tor: boolean;
     residential: boolean;
+    /** VPN/proxy service name when known; otherwise null. */
     service: string | null;
 }
 
@@ -44,12 +45,14 @@ export interface DeviceSignals {
     visitor_id: string | null;
     tampering_score: number;
     high_activity: boolean;
-    /** Sightings of this device for your account (present when the device is identified) */
+    /** Retained sightings of this device across Maskbreak, not scoped to your account.
+     *  Present when identified; records are pruned after 90 days of inactivity. */
     times_seen?: number;
-    /** ISO 8601 timestamp of when Sentinel first saw this device (present when the device is identified) */
+    /** ISO 8601 first sighting in the retained device record, not necessarily its lifetime first visit. */
     first_seen?: string;
     returning?: boolean;
-    /** Distinct accountIds seen on this device (present when accountId was supplied) */
+    /** Distinct accountIds linked to this device for your customer account only.
+     *  Requires accountId and an identified device; links are pruned after 90 days of inactivity. */
     linked_accounts?: number;
     multi_account?: boolean;
 }
@@ -172,6 +175,8 @@ export default class Sentinel {
     constructor(opts: SentinelOptions);
     evaluate(input: EvaluateInput): Promise<EvaluateResult>;
     /** Look up an arbitrary public IP address (GET /v1/lookup/{ip}).
+     *  Limited to public cloud-range/Tor evidence; unknown does not mean safe.
+     *  Use evaluate() with a browser token for VPN/proxy evidence.
      *  Shares the per-key hourly quota with evaluate(). */
     lookup(ip: string): Promise<LookupResponse>;
     /** Runs evaluate() and returns a boolean. Default predicate (since 0.3.0):

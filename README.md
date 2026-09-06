@@ -1,6 +1,6 @@
 # @sentinelsup/sdk
 
-Official Node.js SDK for [Maskbreak](https://maskbreak.com) — real-time fraud detection that flags VPNs, residential proxies, antidetect browsers, and AI bots in under 150 ms.
+Official Node.js SDK for [Maskbreak](https://maskbreak.com) — network and device fraud signals for browser-SDK-backed visits, plus limited public IP intelligence.
 
 [![npm](https://img.shields.io/npm/v/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@sentinelsup/sdk.svg)](https://www.npmjs.com/package/@sentinelsup/sdk)
@@ -27,7 +27,7 @@ machine-readable integration guide, kept in sync with the live API.
 npm install @sentinelsup/sdk
 ```
 
-Zero dependencies. Works on Node 18+, Bun, Deno, Cloudflare Workers, and Vercel Edge (wherever `fetch` exists).
+Zero dependencies. Requires Node.js 18+ with built-in `fetch`. Other runtimes and edge bundlers are not covered by this package's test matrix.
 
 ## Quick start
 
@@ -43,32 +43,33 @@ const result = await sentinel.evaluate({
 if (result.decision === 'block') {
   return res.status(403).json({ error: 'blocked' });
 }
-// 'review' → let through but flag; 'allow' → clean
+// Handle 'review' according to your policy; 'allow' is not a safety guarantee.
 ```
 
 Get a free API key (no credit card) at [maskbreak.com/signup](https://maskbreak.com/signup).
 
 ## What you get back
 
+Illustrative response. The VPN/proxy service name is returned only when known; otherwise it is `null`. Device fields require available device intelligence, not just a supplied event ID.
+
 ```ts
 {
   decision: 'review',          // 'allow' | 'review' | 'block' — route on this
   risk_score: 65,              // 0–100
-  isSuspicious: true,          // simple boolean verdict
+  isSuspicious: true,          // legacy flag; route on decision instead
   ip: '198.51.100.18',
   country: 'NL',
   network: {
     vpn: true, proxy: false, datacenter: true, anonymous: true,
     tor: false, residential: false, service: 'PROTON_VPN'
   },
-  device: {                    // present only when you pass fingerprintEventId
+  device: {                    // when fingerprintEventId resolves to device data
     antidetect: false,         // antidetect browser detected
     automation: false,         // bot / browser automation
     emulator: false, virtual_machine: false, incognito: false,
     ip_blocklisted: false, visitor_id: 'abc123', tampering_score: 0
   },
-  reasons: ['vpn_detected', 'datacenter_asn'],  // machine-readable codes
-  evaluated_in_ms: 126
+  reasons: ['vpn_detected', 'datacenter_asn']  // machine-readable codes
 }
 ```
 
@@ -98,7 +99,11 @@ Collect both and send them to your backend:
 
 ```js
 const { token, fingerprintEventId } = await window.Sentinel.collect();
-fetch('/checkout', { method: 'POST', body: JSON.stringify({ token, fingerprintEventId }) });
+fetch('/checkout', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token, fingerprintEventId })
+});
 ```
 
 ## Examples
@@ -138,8 +143,8 @@ app.post('/auth/google', async (req, res) => {
 ```js
 // Only block when we see both residential proxy AND an antidetect browser
 const blocked = await sentinel.shouldBlock(
-  { token },
-  r => r.network.proxy && r.device?.antidetect
+  { token, fingerprintEventId },
+  r => r.network.proxy && r.network.residential && r.device?.antidetect
 );
 ```
 
@@ -182,13 +187,13 @@ const info = await sentinel.lookup('185.220.101.34');
 
 Returns `EvaluateResult`. Throws `SentinelError` on network/API failure — the error carries `.status` and `.body`.
 
-- `fingerprintEventId` — adds the `device` signal block (antidetect, automation, emulator, …), including device history (`device.times_seen`, `device.first_seen` — ISO timestamp of the first sighting, `device.returning`).
-- `accountId` — your own user id for this session; enables multi-accounting detection (`device.linked_accounts` / `device.multi_account`).
+- `fingerprintEventId` — requests device signals (tampering, automation, emulator, …). When the device is identified, `device.times_seen`, `device.first_seen` and `device.returning` describe its retained sightings across Maskbreak, not just your account. These records are pruned after 90 days of inactivity; `first_seen` is not necessarily the device's lifetime first visit.
+- `accountId` — your own user id for this session; with an identified device, enables customer-scoped account linking (`device.linked_accounts` / `device.multi_account`). Links are hash-only, never cross-customer, and pruned after 90 days of inactivity.
 - `email` — adds `email.disposable` to the response; burner domains escalate `allow` to `review`.
 
 ### `sentinel.lookup(ip)`
 
-Returns `LookupResponse` for any public IPv4/IPv6 address (wraps `GET /v1/lookup/{ip}`): allow/review/block verdict, 0–100 risk score, VPN/proxy/Tor/datacenter signals, and network attribution. Shares the per-key hourly quota with `evaluate()`. `known: false` means our feeds hold no data for the IP — it is **not** a clean guarantee.
+Returns `LookupResponse` for a public IPv4/IPv6 address (wraps `GET /v1/lookup/{ip}`): a verdict, risk score and limited public-feed evidence from cloud-hosting ranges and Tor exit lists. Legacy VPN/proxy fields do not establish complete coverage. Use `evaluate()` with a browser SDK token for VPN/proxy evidence and service naming when known. `known: false`, false signals or an `allow` verdict are **not** a safety guarantee. Network metadata may be null. Shares the per-key hourly quota with `evaluate()`.
 
 ### `sentinel.shouldBlock({ token, fingerprintEventId? }, predicate?)`
 
@@ -201,7 +206,7 @@ Convenience: runs `evaluate()` and returns a boolean. Default predicate is `r =>
 Deterministic test tokens exercise every decision path from a terminal — authenticated and rate-limited like real calls, but never billed, stored, or webhooked (responses carry `"test": true`):
 
 ```js
-await sentinel.evaluate({ token: 'test_vpn' });   // → decision: 'review'/'block' path
+await sentinel.evaluate({ token: 'test_vpn' });   // → engine decision: 'review' (your rules/pins may override)
 await sentinel.evaluate({ token: 'test_clean' }); // → decision: 'allow' path
 // also: test_proxy, test_datacenter, test_tor
 ```
@@ -213,7 +218,20 @@ await sentinel.evaluate({ token: 'test_clean' }); // → decision: 'allow' path
 
 Free tier: **1,000 requests/hour** per API key (`evaluate()` and `lookup()` share the bucket). No monthly cap, no credit card.
 
-On `429`, the thrown `SentinelError` has `.status === 429` — honor the `Retry-After` header and fail open (let the request through and log it) rather than blocking real users while you are throttled. Responses also carry `X-RateLimit-Limit` / `-Remaining` / `-Reset` for proactive backoff.
+On `429`, the thrown `SentinelError` has `.status === 429`. This SDK exposes status and body, not HTTP response headers. If your integration needs `Retry-After` or `X-RateLimit-*`, use raw HTTP and read those headers from the response. Use bounded backoff and an endpoint-specific fallback; an unavailable check is not an allow verdict. Approved public-interest keys have no per-key hourly cap, but independent endpoint and abuse-protection limits still apply.
+
+The current `evaluate()` helper requires a non-empty token and does not serialize `tz`. Raw HTTP accepts missing or empty tokens as degraded evaluations and supports the timezone returned by `Sentinel.collect()`. Use the [HTTP reference](https://maskbreak.com/api#evaluate) for those paths; missing network evidence does not prove a visitor is safe.
+
+## Development checks
+
+```bash
+npm ci --ignore-scripts
+npm test
+npm pack --dry-run --ignore-scripts
+npm audit
+```
+
+Tests use local fixtures, not production keys. CI checks Node.js 18, 22 and 24. These commands do not publish a package.
 
 ## TypeScript
 
@@ -225,11 +243,7 @@ import Sentinel, { EvaluateResult } from '@sentinelsup/sdk';
 
 ## What Maskbreak detects
 
-VPNs (commercial + self-hosted) · residential proxies (Bright Data, IPRoyal,
-and similar networks) · datacenter IPs · Tor exit nodes · antidetect browsers
-(Kameleo, GoLogin, Multilogin, Dolphin{anty}, AdsPower) · headless browsers
-and automation (Puppeteer, Playwright, Selenium) · AI agents · emulators and
-virtual machines · browser tampering.
+SDK-backed visits can supply VPN/proxy, cloud-hosting and Tor signals, with VPN/proxy service names when known. Available device intelligence adds browser tampering, automation, emulator and virtual-machine signals. Coverage depends on the evidence available; these are not guarantees of detecting every product or visitor. Bare-IP lookup is limited to public cloud-range and Tor evidence.
 
 ## Related
 

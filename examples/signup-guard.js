@@ -1,21 +1,22 @@
 /**
- * Stop OAuth signup farms. Counts signups per device (not per email)
- * and blocks the fraudsters behind the 4th+ Google account.
+ * Example customer policy: count signups per identified device (not email).
+ * A shared device is not itself proof of fraud. Choose your own threshold.
  *
  *   SENTINEL_KEY=sk_live_xxx node examples/signup-guard.js
  */
 const Sentinel = require('@sentinelsup/sdk');
 const sentinel = new Sentinel({ apiKey: process.env.SENTINEL_KEY });
 
-// Replace with your real DB call.
+// Demo-only, in-memory state. Production needs an atomic, persistent counter.
 const signupsByVisitor = new Map();
 
-async function handleSignup({ email, sentinelToken }) {
-    const result = await sentinel.evaluate({ token: sentinelToken });
-    const visitorId = result.deviceIntel && result.deviceIntel.visitorId;
+async function handleSignup({ email, sentinelToken, fingerprintEventId }) {
+    const result = await sentinel.evaluate({ token: sentinelToken, fingerprintEventId });
+    const visitorId = result.device && result.device.visitor_id;
 
-    // If Sentinel couldn't fingerprint, fall back to IP (coarser but better than nothing).
-    const identity = visitorId || result.details.ip;
+    // Do not merge unrelated users behind a shared or missing IP into one device.
+    if (!visitorId) throw new Error('Device check unavailable — retry or use a separate verification step');
+    const identity = visitorId;
     const prior = signupsByVisitor.get(identity) || 0;
 
     if (prior >= 3) {
@@ -30,5 +31,5 @@ async function handleSignup({ email, sentinelToken }) {
 }
 
 // Demo
-handleSignup({ email: 'test@example.com', sentinelToken: 'YOUR_TOKEN_HERE' })
+handleSignup({ email: 'test@example.com', sentinelToken: 'YOUR_TOKEN_HERE', fingerprintEventId: 'YOUR_EVENT_ID_HERE' })
     .catch(err => console.error('✗', err.message));

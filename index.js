@@ -55,6 +55,7 @@ class Sentinel {
                 signal: controller.signal
             });
         } catch (err) {
+            clearTimeout(abortTimer);
             if (err.name === 'AbortError') {
                 throw new SentinelError(`Sentinel: request timed out after ${this.timeoutMs}ms`);
             }
@@ -81,6 +82,10 @@ class Sentinel {
             );
         }
 
+        if (!json || typeof json !== 'object' || Array.isArray(json)) {
+            throw new SentinelError('Sentinel: invalid JSON response from API', { status: res.status, body: json });
+        }
+
         return json;
     }
 
@@ -99,17 +104,23 @@ class Sentinel {
         if (!token || typeof token !== 'string') {
             throw new SentinelError('Sentinel.evaluate: token (client-side Sentinel token) is required');
         }
-        return this._request('/v1/evaluate', {
+        const result = await this._request('/v1/evaluate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, fingerprintEventId, accountId, email })
         });
+        if (!['allow', 'review', 'block'].includes(result.decision)) {
+            throw new SentinelError('Sentinel.evaluate: invalid decision in API response', { body: result });
+        }
+        return result;
     }
 
     /**
      * Look up an arbitrary public IP address — no browser token needed.
      * Wraps GET /v1/lookup/{ip}: allow/review/block verdict, 0–100 risk
-     * score, VPN/proxy/Tor/datacenter signals, and network attribution.
+     * score and limited public-feed evidence (cloud ranges and Tor).
+     * VPN/proxy evidence needs evaluate() with a browser token; an unknown
+     * IP or false signal is not proof that the visitor is safe.
      * Shares the per-key hourly quota with evaluate().
      *
      * @param {string} ip — public IPv4 or IPv6 address, e.g. '185.220.101.34'
